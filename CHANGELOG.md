@@ -20,3 +20,11 @@
   clean; `vite preview` serves 200s.
 - Limitations: Vercel deploy and on-device checklist (spec §14) pending;
   deviations logged in NOTES.md.
+
+## 2026-10-24T21:35:00+05:30 — Narrator queue race fix
+
+- Changed: `src/narration/narrator.ts` — re-check `speaking` after awaiting
+  voice resolution; a second queued line could overlap the in-flight one.
+- Why: spec requires narration to never overlap itself.
+- Validation: `tsc --noEmit` clean; `vitest run` 54/54 pass.
+- Limitations: none identified.
