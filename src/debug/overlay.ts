@@ -59,11 +59,16 @@ export class DebugOverlay {
     }
     if (level) renderMap(this.canvas, level, state);
     const lat = engine?.latencyInfo ?? { baseLatency: 0, outputLatency: 0 };
-    this.statsEl.innerHTML = [
-      `voices ${engine?.voiceCount ?? 0}`,
-      `baseLatency ${(lat.baseLatency * 1000).toFixed(0)}ms`,
-      `outputLatency ${(lat.outputLatency * 1000).toFixed(0)}ms`,
-      ...Object.entries(extra).map(([k, v]) => `${k} ${v}`),
-    ].join('<br>');
+    const stats: [string, string][] = [
+      ['voices', String(engine?.voiceCount ?? 0)],
+      ['latency', `${((lat.baseLatency + lat.outputLatency) * 1000).toFixed(0)}ms`],
+      ...Object.entries(extra),
+    ];
+    if (this.visual) {
+      this.statsEl.innerHTML = stats.map(([k, v]) =>
+        `<div class="chip${k === 'heard' ? ' heard' : ''}"><span>${k}</span><b>${v}</b></div>`).join('');
+    } else {
+      this.statsEl.innerHTML = stats.map(([k, v]) => `${k} ${v}`).join('<br>');
+    }
   }
 }

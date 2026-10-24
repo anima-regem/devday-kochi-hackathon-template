@@ -144,10 +144,13 @@ export function renderMap(canvas: HTMLCanvasElement, level: Level, state: Render
   // Creature.
   if (state.creature && state.showCreature !== false) {
     const col = STATE_COLORS[state.creature.state];
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 14;
     ctx.fillStyle = col;
     ctx.beginPath();
     ctx.arc(X(state.creature.x), Y(state.creature.y), Math.max(3, scale * 0.3), 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.strokeStyle = col;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -167,10 +170,13 @@ export function renderMap(canvas: HTMLCanvasElement, level: Level, state: Render
     ctx.arc(px, py, scale * 1.6, h - Math.PI / 2 - 0.5, h - Math.PI / 2 + 0.5);
     ctx.closePath();
     ctx.fill();
+    ctx.shadowColor = '#67e8f9';
+    ctx.shadowBlur = 16;
     ctx.fillStyle = '#f4f1de';
     ctx.beginPath();
     ctx.arc(px, py, Math.max(3, scale * 0.28), 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
     // Heading tick.
     ctx.strokeStyle = '#f4f1de';
     ctx.lineWidth = 2;

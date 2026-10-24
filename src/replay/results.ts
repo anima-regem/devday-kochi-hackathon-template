@@ -71,7 +71,10 @@ export class ResultsScreen {
     this.level = level;
     this.el.classList.remove('hidden');
     const outcome = rec.outcome === 'win' ? 'You escaped' : 'It found you';
-    this.el.querySelector('#res-outcome')!.textContent = outcome;
+    const h1 = this.el.querySelector('#res-outcome')!;
+    h1.textContent = outcome;
+    h1.className = rec.outcome === 'win' ? 'win' : 'caught';
+    this.nextBtn.className = 'primary';
     const mins = Math.floor(rec.duration / 60);
     const secs = Math.round(rec.duration % 60);
     const approach = rec.closestApproach === Infinity

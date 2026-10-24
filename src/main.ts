@@ -32,6 +32,7 @@ function boot(): void {
   // ── DOM scaffold ──────────────────────────────────────────────────────
   app.innerHTML = `
     <div id="boot" class="screen">
+      <div class="sonar"><i></i><i></i><i></i></div>
       <h1>ECHO</h1>
       <p>Put on wired earphones.<br>Tap anywhere to begin.</p>
       <p class="code" id="speech-note"></p>

@@ -56,3 +56,15 @@
   black map outside of play.
 - Validation: `tsc --noEmit` clean; `vitest run` 54/54 pass; `vite build` clean.
 - Limitations: none identified in these checks.
+
+## 2026-10-24T21:55:00+05:30 — UI/UX polish pass (sonar theme)
+
+- Changed: `src/style.css` rewritten with a design-token palette (near-black
+  blue, cyan echo accents, amber/red danger); boot screen gets pulsing sonar
+  rings; HUD stats become labeled chips with a highlighted "heard" readout;
+  results/watch/tuning surfaces restyled; player/creature glow in the map
+  renderer; favicon added.
+- Why: hackathon demo needs a legible, polished sighted view; the play screen
+  itself remains black by design.
+- Validation: `tsc --noEmit` clean; `vitest run` 54/54; `vite build` clean.
+- Limitations: visual review of the deployed build still pending.
