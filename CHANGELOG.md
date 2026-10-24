@@ -28,3 +28,15 @@
 - Why: spec requires narration to never overlap itself.
 - Validation: `tsc --noEmit` clean; `vitest run` 54/54 pass.
 - Limitations: none identified.
+
+## 2026-10-24T21:40:00+05:30 — Visual testing mode
+
+- Changed: `src/main.ts`, `src/debug/overlay.ts`, `src/style.css` — live
+  top-down map during play plus status line and desktop key hints. On by
+  default on non-touch devices; `?visual=1`/`?visual=0` overrides anywhere.
+  Menu shows a map preview of the selected level; Space starts a level from
+  the menu.
+- Why: desktop testing is impossible on a black screen; the real demo still
+  keeps the phone dark.
+- Validation: `tsc --noEmit` clean; `vitest run` 54/54 pass; `vite build` clean.
+- Limitations: visual mode is a test aid, not part of the shipped play UX.

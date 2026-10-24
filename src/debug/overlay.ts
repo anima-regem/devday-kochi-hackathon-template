@@ -12,6 +12,8 @@ export class DebugOverlay {
   private statsEl: HTMLElement;
   private captionEl: HTMLElement;
   visible = false;
+  /** Visual/testing mode: larger always-on map for desktop testing. */
+  visual = false;
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
@@ -22,6 +24,11 @@ export class DebugOverlay {
     this.canvas = this.el.querySelector('canvas')!;
     this.statsEl = this.el.querySelector('.dbg-stats')!;
     this.captionEl = this.el.querySelector('.dbg-caption')!;
+  }
+
+  setVisual(v: boolean): void {
+    this.visual = v;
+    this.el.classList.toggle('visual', v);
   }
 
   toggle(): void {
@@ -40,8 +47,12 @@ export class DebugOverlay {
 
   render(level: Level | null, state: RenderState, engine: Engine | null, extra: Record<string, string>): void {
     if (!this.visible) return;
-    const w = Math.min(window.innerWidth, 480);
-    const h = Math.min(window.innerHeight * 0.5, 420);
+    const w = this.visual
+      ? Math.min(window.innerWidth - 24, 720)
+      : Math.min(window.innerWidth, 480);
+    const h = this.visual
+      ? Math.min(window.innerHeight * 0.72, 560)
+      : Math.min(window.innerHeight * 0.5, 420);
     if (this.canvas.width !== w) {
       this.canvas.width = w;
       this.canvas.height = h;

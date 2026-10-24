@@ -37,11 +37,15 @@ function boot(): void {
       <p class="code" id="speech-note"></p>
     </div>
     <div id="room-code"></div>
+    <div id="status"></div>
+    <div id="keys-help"></div>
     <div id="caption"></div>`;
   const bootEl = app.querySelector('#boot')!;
   const codeEl = app.querySelector('#room-code')!;
   const speechNote = app.querySelector('#speech-note')!;
   const captionEl = app.querySelector<HTMLElement>('#caption')!;
+  const statusEl = app.querySelector<HTMLElement>('#status')!;
+  const helpEl = app.querySelector<HTMLElement>('#keys-help')!;
 
   const results = new ResultsScreen(app);
   const overlay = new DebugOverlay(app);
@@ -71,13 +75,32 @@ function boot(): void {
   }
 
   const keyboard = new KeyboardInput({
-    onClick: () => { if (phase === 'playing') session?.click(); },
+    onClick: () => {
+      if (phase === 'playing') session?.click();
+      else if (phase === 'menu') {
+        const l = levels[menuIdx];
+        if (l.meta.order <= progress.unlocked || progress.finishedAll) startLevel(l);
+      }
+    },
     onHint: () => { if (phase === 'playing') session?.hint(); },
     onPause: () => togglePause(),
     onDebugToggle: () => { overlay.toggle(); tuningPanel.toggle(); },
   });
 
   const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  // Visual/testing mode: live map during play. On by default on desktop,
+  // or anywhere via ?visual=1 (phone stays black without it).
+  const visual = params.get('visual') === '1' || (!isTouch && params.get('visual') !== '0');
+  overlay.setVisual(visual);
+
+  function setStatus(text: string, help = false): void {
+    statusEl.textContent = text;
+    statusEl.classList.toggle('on', !!text && visual);
+    helpEl.classList.toggle('on', help && visual);
+    if (help) {
+      helpEl.textContent = 'Space click · W/S walk · A/D turn · H hint · Esc pause · ` debug';
+    }
+  }
 
   function earcon(): void {
     if (!sounds || !engine.ready) return;
@@ -165,8 +188,19 @@ function boot(): void {
   }
 
   // ── audio menu ────────────────────────────────────────────────────────
+  function menuStatus(): void {
+    const l = levels[menuIdx];
+    const locked = !(l.meta.order <= progress.unlocked || progress.finishedAll);
+    setStatus(`Menu — Level ${l.meta.order}: ${l.meta.name}${locked ? ' (locked)' : ''} — click to play, swipe to choose`);
+    if (visual) {
+      overlay.show(true);
+      overlay.render(l, {}, engine.ready ? engine : null, { menu: locked ? 'locked' : 'unlocked' });
+    }
+  }
+
   function announceLevel(): void {
     const l = levels[menuIdx];
+    menuStatus();
     if (l.meta.order <= progress.unlocked || progress.finishedAll) {
       narrator.interrupt(MENU.levelName(l.meta.order, l.meta.name));
     } else {
@@ -178,6 +212,7 @@ function boot(): void {
     phase = 'menu';
     menuIdx = Math.min(menuIdx, levels.length - 1);
     const l = levels[menuIdx];
+    menuStatus();
     narrator.say(MENU.intro(l.meta.order, l.meta.name));
   }
 
@@ -187,6 +222,8 @@ function boot(): void {
     session?.stop();
     currentLevel = level;
     phase = 'playing';
+    setStatus(`Level ${level.meta.order} — ${level.meta.name}`, true);
+    if (visual) overlay.show(true);
     session = new GameSession({
       engine,
       sounds,
@@ -206,6 +243,8 @@ function boot(): void {
   function onRunEnd(outcome: 'win' | 'caught', rec: Recording): void {
     lastRec = rec;
     phase = 'results';
+    setStatus(outcome === 'win' ? 'Results — escaped' : 'Results — caught');
+    if (visual) overlay.show(false);
     const l = currentLevel!;
     if (outcome === 'win') {
       progress.unlocked = Math.max(progress.unlocked, Math.min(levels.length, l.meta.order + 1));
@@ -230,6 +269,7 @@ function boot(): void {
     if (phase === 'playing') {
       phase = 'paused';
       session?.setPaused(true);
+      setStatus('Paused — tap to resume, swipe down restart, swipe up menu, swipe left steps');
       narrator.say(MENU.pause);
     } else if (phase === 'paused') {
       resume();
@@ -239,6 +279,7 @@ function boot(): void {
   function resume(): void {
     phase = 'playing';
     session?.setPaused(false);
+    setStatus(`Level ${currentLevel?.meta.order ?? ''} — ${currentLevel?.meta.name ?? ''}`, true);
   }
 
   // ── gesture routing by phase ──────────────────────────────────────────
