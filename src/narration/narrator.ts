@@ -135,6 +135,11 @@ export class Narrator {
       return;
     }
     await this.voiceReady;
+    // Another pump() may have started a line while we awaited voiceReady.
+    if (this.speaking) {
+      this.queue.unshift(line);
+      return;
+    }
     if (!this.speechAvailable || typeof speechSynthesis === 'undefined') {
       // Caption + earcon fallback; pause so captions are readable.
       this.showCaption(line);
