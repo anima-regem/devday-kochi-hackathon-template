@@ -1,23 +1,22 @@
 # Change log
 
-Record each meaningful project change during the event, newest first. Update this file in the same commit as the change. Use a real timestamp with timezone, for example `YYYY-MM-DDTHH:MM:SS+05:30`.
+## 2026-10-24T21:20:00+05:30 — Template migration + screenshots
 
-## Event build log
+- Changed: imported full project into the DevDay template repository; added
+  `scripts/screenshots.ts` (renders real level maps + echo hits to PNG) and
+  `screenshots/`; filled README/SUBMISSION/AI_USAGE placeholders.
+- Why: hackathon requires code, run scripts, and supporting screenshots in the
+  provided template repo.
+- Validation: `node scripts/.screenshots.mjs` produced all PNGs; visual check
+  of `hold-run.png` (walls, path, click rings, echo lines, creature).
+- Limitations: screenshots are static renders, not device captures.
 
-No project implementation has been recorded yet. Replace this sentence with entries as you build:
+## 2026-10-24T21:05:00+05:30 — Initial build: Echo complete
 
-```text
-## <actual timestamp> — <short change title>
-
-- Changed: <feature or files changed>
-- Why: <reason for the change>
-- Validation: <commands or manual checks actually run, with results>
-- Limitations: <known issues or "None identified in these checks">
-```
-
-## Template setup — 10 October 2026
-
-- Changed: Added the event README, rules, agent guide, change log, AI usage record, submission checklist, Git ignore rules, and pull request checklist.
-- Why: Give participants a consistent starting point for event rules, basic coding patterns, documented changes, and regular commits.
-- Validation: Checked local Markdown links, event detail consistency, required documents, and diff whitespace before publishing.
-- Limitations: Documentation scaffolding only; no participant project, application, or working demo is included. GitHub publication and template status are verified separately after creation.
+- Changed: full implementation of ECHO_SPEC.md — three batches (engine, game,
+  reveal/polish) in one pass. All of `src/`, `tests/`, PWA config, docs.
+- Why: build the game to spec.
+- Validation: `npm test` 54/54 pass; `tsc` clean; `vite build` + SW generation
+  clean; `vite preview` serves 200s.
+- Limitations: Vercel deploy and on-device checklist (spec §14) pending;
+  deviations logged in NOTES.md.

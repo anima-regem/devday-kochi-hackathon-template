@@ -1,56 +1,77 @@
-# DevDay Exchange Community Hackathon: Kochi
+# Echo
 
-A repository template for participants at the 10–11 October 2026 hackathon. It contains event rules and documentation scaffolding; build your project from scratch at the event.
+A game played in total darkness, by sound alone. The phone screen stays black
+during play. The player taps to make a click, hears the echoes of a simulated
+space in 3D audio through wired earphones, turns by physically turning the
+phone, and must find the exit — later, while something hunts them by sound.
 
-**[Event and registration on Luma](https://luma.com/z10nz8gp)** · **[Event rules](RULES.md)** · **[Agent instructions](AGENTS.md)**
+Built for **DevDay Exchange Community Hackathon: Kochi** (see
+[RULES.md](RULES.md), [AGENTS.md](AGENTS.md)). Full design spec:
+[ECHO_SPEC.md](ECHO_SPEC.md). Demo script: [DEMO.md](DEMO.md). Spec deviations:
+[NOTES.md](NOTES.md).
 
-## Event details
+## Project overview
 
-| Detail | Information |
-| --- | --- |
-| Venue | JAIN University, Kochi |
-| Location | [Open the venue map](https://maps.app.goo.gl/Eme7gR7NDXSNRANu5) |
-| Rooms | 2008 and 2009 |
-| Check-in | 10 October 2026, 6:00 PM IST |
-| Kick-off | 10 October 2026, 6:30 PM IST |
-| Wrap-up | 11 October 2026, by 10:00 AM IST |
-| Participation | Solo or a team of up to 4 participants |
-| Theme | Open — build anything you like |
-
-Keep your approved Luma QR code ready for entry, and bring your laptop and charger. Eligible checked-in participants will receive Codex credits and OpenAI API credits.
-
-## Use this template
-
-1. Select **Use this template → Create a new repository** on GitHub. Create your own project repository and clone it.
-2. Read [RULES.md](RULES.md) and [AGENTS.md](AGENTS.md) before building. Begin project implementation at the event.
-3. Fill in the project overview below as you build. Use any suitable language or framework, keeping the implementation simple.
-4. Record meaningful changes in [CHANGELOG.md](CHANGELOG.md) and your Codex usage in [AI_USAGE.md](AI_USAGE.md). Commit after completed milestones; aim for a meaningful checkpoint about every 30 minutes.
-5. Complete [SUBMISSION.md](SUBMISSION.md) with your code repository, short project description, and working demo. Follow submission instructions announced by the organizers.
-
-This template has no application code or required technology stack. The documentation and commit cadence are repository workflow guidance; the event participation rules are in [RULES.md](RULES.md).
-
-## Project overview — complete during the event
-
-- **Project name:** TODO
-- **Short description:** TODO — what it does, who it helps, and why it matters.
-- **Team:** TODO — participant names and GitHub handles; maximum 4 members.
-- **Working demo:** TODO — link or local demo instructions.
-- **Technology stack:** TODO
+- **Project name:** Echo
+- **Short description:** A mobile-web audio game with no visuals during play.
+  Players echolocate with tap-generated clicks (a real-time raycast echo model
+  over a 2D grid, rendered through HRTF-panned Web Audio), navigate by a
+  sea-breeze beacon that propagates around corners, and evade a creature that
+  hunts by hearing the same clicks the player relies on. A spectator view
+  (`/watch`) lets an audience watch the blindfolded player's run live on a
+  projector.
+- **Team:** cainebenoy
+- **Working demo:** `npm run dev` then open the dev URL; for the full phone +
+  sensors demo, deploy to Vercel (`npx vercel --prod`, HTTPS required for iOS
+  `deviceorientation`). See [DEMO.md](DEMO.md).
+- **Technology stack:** Vite + TypeScript (no UI framework, plain DOM +
+  Canvas 2D), Web Audio API (all sounds procedurally synthesized), Web Speech
+  API narration, Supabase Realtime broadcast for spectator mode (optional),
+  Vitest + `vite-plugin-pwa` (offline after first load).
 
 ### Run the project
 
-Replace these placeholders with commands that actually work for your project:
-
-1. Prerequisites and versions: TODO
-2. Dependency installation: TODO
-3. Environment setup: TODO — list required variable names and provide a sanitized `.env.example` if needed.
-4. Start the project: TODO
-5. Run checks or tests: TODO
+1. Prerequisites: Node.js 20+ and npm 10+.
+2. `npm install`
+3. Environment: spectator mode needs `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_ANON_KEY` (see `.env.example`); the game works fully without
+   them.
+4. Start: `npm run dev` (desktop backup demo: `Space` click, `W` walk, `A`/`D`
+   turn, `H` hint, `Esc` pause, `` ` `` debug overlay).
+5. Checks: `npm test` (54 unit tests), `npm run build` (typecheck + PWA build).
+6. Screenshots: `npm run screenshots` regenerates `screenshots/` from the real
+   level maps and echo model.
 
 ### Current status
 
-- Working features: TODO
-- Known limitations: TODO
-- Libraries, APIs, and public datasets used: TODO — include source links and applicable attribution.
+- **Working features:** all five levels + sandbox, echo model with material
+  reflectivity/cutoffs, beacon and creature positional audio with
+  around-corner propagation, gesture state machine (tap/walk/long-press/
+  three-finger/swipe), rotation-matrix phone turning with drag fallback,
+  narration queue with offline-voice preference and caption+earcon fallback,
+  creature AI (wander/investigate/hunt/catch), 10 Hz run recorder, results
+  screen with scrub-able replay, `/watch` spectator view, PWA offline, wake
+  lock, walk-in-place step detection.
+- **Known limitations:** portrait lock is best-effort (unsupported on iOS
+  Safari); speech depends on device voices (fallback mode documented in
+  NOTES.md); Vercel deploy not yet performed (requires `vercel login`);
+  real-device checklist in ECHO_SPEC.md §14 still pending.
+- **Libraries, APIs, datasets:** Vite, TypeScript, Vitest, `vite-plugin-pwa`
+  (workbox), `@supabase/supabase-js`. All audio synthesized at runtime; no
+  assets or datasets.
 
-See [AI_USAGE.md](AI_USAGE.md) for AI assistance and [CHANGELOG.md](CHANGELOG.md) for the development record.
+## Screenshots
+
+Top-down renders produced by `scripts/screenshots.ts` from the actual level
+maps and echo computations (the player never sees these — they are what the
+sound field represents):
+
+| | |
+|---|---|
+| ![Walls](screenshots/level-walls.png) | ![Hold](screenshots/level-hold.png) |
+| Walls — find the silent gap by echo | The Hold — the creature (red) |
+| ![Hold run](screenshots/hold-run.png) | ![Godown](screenshots/level-godown.png) |
+| Hold mid-run: path, click rings, echo lines | Godown — sacks, water, decoy |
+
+See [AI_USAGE.md](AI_USAGE.md) for the AI-assistance record and
+[CHANGELOG.md](CHANGELOG.md) for the development record.

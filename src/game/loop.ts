@@ -1,0 +1,407 @@
+import { computeEcho, playEcho, type EchoResult } from '../audio/echo';
+import type { Engine } from '../audio/engine';
+import { PositionalLoop, propagate } from '../audio/sources';
+import type { SoundSet } from '../audio/synth';
+import type { Tuning } from '../audio/tuning';
+import { bfsField, type BfsField } from '../world/path';
+import type { Level } from '../world/level';
+import type { FloorMaterial } from '../world/materials';
+import type { GestureEvent } from '../input/gestures';
+import type { OrientationTracker } from '../input/orientation';
+import type { KeyboardInput } from '../input/keyboard';
+import type { StepDetector } from '../input/steps';
+import type { Narrator } from '../narration/narrator';
+import type { SpectateNet } from '../spectate/net';
+import type { DebugOverlay } from '../debug/overlay';
+import type { RenderState } from '../replay/render';
+import { Creature, HEARING } from './creature';
+import { Player } from './player';
+import { Recorder, type Outcome, type Recording } from '../replay/recorder';
+import { MENU } from '../narration/script';
+
+export interface SessionDeps {
+  engine: Engine;
+  sounds: SoundSet;
+  tuning: Tuning;
+  narrator: Narrator;
+  orientation: OrientationTracker;
+  keyboard: KeyboardInput;
+  steps: StepDetector;
+  net: SpectateNet;
+  overlay: DebugOverlay;
+  isTouch: boolean;
+  onEnd(outcome: Outcome, rec: Recording): void;
+}
+
+const DEG = Math.PI / 180;
+const PUBLISH_HZ = 15;
+
+export class GameSession {
+  level!: Level;
+  player = new Player();
+  creature: Creature | null = null;
+  paused = false;
+  private deps: SessionDeps;
+  private raf = 0;
+  private last = 0;
+  private runT = 0;
+  private lastClickAt = -Infinity;
+  private lastEcho: EchoResult | null = null;
+  private beacon: PositionalLoop | null = null;
+  private breathing: PositionalLoop | null = null;
+  private recorder!: Recorder;
+  private hintIdx = 0;
+  private sensorsFallback = false;
+  private fallbackChecked = false;
+  private walkGesture = false;
+  private stepBudget = 0;
+  private nextBeat = 0;
+  private nextDrip = 4;
+  private nextPublish = 0;
+  private ended = false;
+  private dragTurnDeg = 0;
+
+  constructor(deps: SessionDeps) {
+    this.deps = deps;
+  }
+
+  start(level: Level): void {
+    this.level = level;
+    this.ended = false;
+    this.paused = false;
+    this.runT = 0;
+    this.hintIdx = 0;
+    this.lastEcho = null;
+    this.sensorsFallback = false;
+    this.fallbackChecked = false;
+    this.player.spawn(level);
+    this.deps.engine.setReverb(level.meta.rt60);
+    this.recorder = new Recorder(level.meta.id, level.meta.name);
+
+    this.deps.orientation.resetBaseline(level.meta.playerHeading);
+
+    if (level.meta.creature && level.creatureSpawn) {
+      this.creature = new Creature();
+      this.creature.spawn(level);
+      this.breathing = new PositionalLoop(this.deps.engine, this.deps.sounds.breathing, 0.8);
+      this.breathing.start();
+      this.nextDrip = 3 + Math.random() * 4;
+    } else {
+      this.creature = null;
+    }
+
+    if (level.meta.beacon && level.exits.length > 0) {
+      this.beacon = new PositionalLoop(
+        this.deps.engine, this.deps.sounds.beacon, level.meta.beaconGain, this.deps.engine.ambienceBus,
+      );
+      this.beacon.start();
+    }
+
+    this.deps.net.event({ type: 'start', levelId: level.meta.id, levelName: level.meta.name });
+    this.deps.narrator.say(...level.meta.narration.intro);
+
+    this.last = performance.now();
+    const loop = (now: number) => {
+      this.raf = requestAnimationFrame(loop);
+      this.frame(now);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  stop(): void {
+    cancelAnimationFrame(this.raf);
+    this.beacon?.stop();
+    this.breathing?.stop();
+    this.beacon = this.breathing = null;
+  }
+
+  // ── input routed by the app ──────────────────────────────────────────
+
+  handleGesture(e: GestureEvent): void {
+    if (this.ended || this.paused) return;
+    switch (e.type) {
+      case 'tap': this.click(); break;
+      case 'walkStart': this.walkGesture = true; break;
+      case 'walkEnd': this.walkGesture = false; break;
+      case 'longPress': this.hint(); break;
+      case 'drag':
+        if (this.sensorsFallback) this.dragTurnDeg += e.dx * 0.4;
+        break;
+      default: break;
+    }
+  }
+
+  click(): void {
+    if (this.ended || this.paused) return;
+    if (!this.level.meta.clicksEnabled) return;
+    const now = performance.now();
+    if (now - this.lastClickAt < this.deps.tuning.clickCooldownMs) return;
+    this.lastClickAt = now;
+    const t = this.deps.tuning;
+    const echo = computeEcho(this.level, this.player.x, this.player.y, this.player.heading, t);
+    this.lastEcho = echo;
+    playEcho(this.deps.engine, this.deps.sounds.click, echo, t);
+    this.recorder.click(this.runT, echo.hitPoints);
+    const field = this.currentField();
+    if (field && this.creature) {
+      this.creature.hearClick(this.level, field, this.player.x, this.player.y, this.creatureEvents());
+    }
+    this.deps.net.event({
+      type: 'click', x: this.player.x, y: this.player.y, hits: echo.hitPoints,
+    });
+  }
+
+  hint(): void {
+    if (this.ended || this.paused) return;
+    this.recorder.hint(this.runT);
+    const hints = this.level.meta.hints;
+    if (hints && this.hintIdx < hints.length) {
+      this.deps.narrator.say(hints[this.hintIdx++]);
+    } else {
+      const intro = this.level.meta.narration.intro;
+      this.deps.narrator.say(MENU.objectiveRepeat(intro[intro.length - 1] ?? ''));
+    }
+  }
+
+  setPaused(p: boolean): void {
+    this.paused = p;
+    if (p) this.walkGesture = false; // don't keep walking after resume
+    else this.last = performance.now();
+  }
+
+  private currentField(): BfsField | null {
+    if (!this.level) return null;
+    return bfsField(this.level, Math.floor(this.player.x), Math.floor(this.player.y));
+  }
+
+  private creatureEvents() {
+    return {
+      onStateChange: (s: 'wander' | 'investigate' | 'hunt' | 'caught') => {
+        this.recorder.creatureState(this.runT, s);
+      },
+      onGrowl: (x: number, y: number) => {
+        this.playPositional(this.deps.sounds.growl, x, y, 1);
+      },
+      onCatch: () => {
+        this.endRun('caught');
+      },
+    };
+  }
+
+  /** One-shot positional sound through the propagation model. */
+  private playPositional(buf: AudioBuffer, wx: number, wy: number, baseGain: number): void {
+    const field = this.currentField();
+    if (!field) return;
+    const p = propagate(this.level, field, this.player.x, this.player.y, this.player.heading, wx, wy);
+    if (!p) return;
+    const ctx = this.deps.engine.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = p.occluded ? 1500 : 12000;
+    const g = ctx.createGain();
+    g.gain.value = baseGain / Math.max(1, p.distance);
+    const pan = this.deps.engine.pannerAt(p.rel);
+    src.connect(lp).connect(g).connect(pan).connect(this.deps.engine.sfxBus);
+    this.deps.engine.track(src);
+    src.start();
+  }
+
+  private playCentred(buf: AudioBuffer, gain: number): void {
+    const ctx = this.deps.engine.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    const pan = this.deps.engine.centred();
+    src.connect(g).connect(pan).connect(this.deps.engine.sfxBus);
+    this.deps.engine.track(src);
+    src.start();
+  }
+
+  // ── frame ────────────────────────────────────────────────────────────
+
+  private frame(now: number): void {
+    const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000));
+    this.last = now;
+    if (this.paused || this.ended) return;
+    this.runT += dt;
+
+    // Fallback turning kicks in if no orientation data 2 s after start.
+    if (!this.fallbackChecked && this.runT > 2) {
+      this.fallbackChecked = true;
+      if (this.deps.orientation.heading === null || this.deps.orientation.sinceLastSample(now) === Infinity) {
+        this.sensorsFallback = true;
+        if (this.deps.isTouch) this.deps.narrator.say(MENU.sensorsFallback);
+      }
+    }
+    if (!this.fallbackChecked && this.deps.orientation.heading !== null) {
+      this.fallbackChecked = true;
+    }
+
+    // Heading: sensors, else keyboard/drag.
+    let turnDelta = this.deps.keyboard.turnDir * 120 * DEG * dt
+      + this.deps.keyboard.consumeTurnDelta() * DEG
+      + this.dragTurnDeg * DEG;
+    this.dragTurnDeg = 0;
+    const oh = this.deps.orientation.heading;
+    if (oh !== null && !this.sensorsFallback) {
+      this.player.heading = oh * DEG;
+      turnDelta = 0;
+    }
+
+    // Walk input: two-finger hold, keys, or walk-in-place budget.
+    let moveDir = this.walkGesture ? 1 : this.deps.keyboard.walkDir;
+    if (moveDir === 0 && this.stepBudget > 0) moveDir = 1;
+    const px0 = this.player.x;
+    const py0 = this.player.y;
+
+    const won = this.player.update(
+      this.level, dt, moveDir, turnDelta,
+      this.deps.tuning.walkSpeed, this.deps.tuning.waterSpeedMul,
+      {
+        onFootstep: (f) => this.footstep(f),
+        onBump: (d) => this.bump(d),
+      },
+    );
+
+    if (this.stepBudget > 0) {
+      this.stepBudget -= Math.hypot(this.player.x - px0, this.player.y - py0);
+      if (this.stepBudget < 0) this.stepBudget = 0;
+    }
+
+    const field = this.currentField();
+
+    // Creature AI.
+    if (this.creature && field) {
+      this.creature.update(this.level, dt, this.player.x, this.player.y, this.creatureEvents());
+      // Breathing follows it around corners.
+      const p = propagate(this.level, field,
+        this.player.x, this.player.y, this.player.heading,
+        this.creature.x, this.creature.y);
+      if (p) this.breathing?.update(p.rel, p.distance, p.occluded);
+      // Heartbeat when path distance < 7 m, 70→150 bpm.
+      const d = this.creature.distanceTo(field);
+      if (d >= 0 && d < HEARING.huntEnter) {
+        const bpm = 70 + ((HEARING.huntEnter - d) / (HEARING.huntEnter - 1)) * (150 - 70);
+        if (this.runT >= this.nextBeat) {
+          this.nextBeat = this.runT + 60 / bpm;
+          this.playCentred(this.deps.sounds.heartbeat, 0.85);
+        }
+      }
+      // Ambient drips in the hold.
+      if (this.runT >= this.nextDrip) {
+        this.nextDrip = this.runT + 4 + Math.random() * 6;
+        const dx = this.player.x + (Math.random() * 8 - 4);
+        const dy = this.player.y + (Math.random() * 8 - 4);
+        this.playPositional(this.deps.sounds.drip, dx, dy, 0.5);
+      }
+    }
+
+    // Beacon.
+    if (this.beacon && field && this.level.exits.length > 0) {
+      const e = this.level.exits[0];
+      const p = propagate(this.level, field,
+        this.player.x, this.player.y, this.player.heading,
+        e.col + 0.5, e.row + 0.5);
+      if (p) this.beacon.update(p.rel, p.distance, p.occluded);
+    }
+
+    this.recorder.tick(this.runT, this.player.x, this.player.y, this.player.heading,
+      this.creature?.x, this.creature?.y, this.creature?.state);
+
+    // Spectator publish at 15 Hz.
+    if (this.runT >= this.nextPublish) {
+      this.nextPublish = this.runT + 1 / PUBLISH_HZ;
+      this.deps.net.frame({
+        t: this.runT,
+        x: this.player.x,
+        y: this.player.y,
+        heading: this.player.heading,
+        levelId: this.level.meta.id,
+        levelName: this.level.meta.name,
+        clicks: this.recorder.data.clicks,
+        cx: this.creature?.x,
+        cy: this.creature?.y,
+        cstate: this.creature?.state,
+      });
+    }
+
+    this.renderDebug();
+
+    if (won) this.endRun('win');
+  }
+
+  private footstep(f: FloorMaterial): void {
+    const t = this.deps.sounds;
+    const buf = f === 'water'
+      ? t.footstepWater[Math.floor(Math.random() * t.footstepWater.length)]
+      : f === 'wood'
+        ? t.footstepWood[Math.floor(Math.random() * t.footstepWood.length)]
+        : t.footstepStone;
+    this.playCentred(buf, 0.55 + Math.random() * 0.15);
+    const field = this.currentField();
+    if (field && this.creature) {
+      this.creature.hearFootstep(this.level, field, f, this.player.x, this.player.y, this.creatureEvents());
+    }
+  }
+
+  private bump(hitDir: { x: number; y: number }): void {
+    const ctx = this.deps.engine.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.deps.sounds.bump;
+    const g = ctx.createGain();
+    g.gain.value = 0.9;
+    // Pan toward the wall we hit.
+    const worldAngle = Math.atan2(hitDir.x, -hitDir.y);
+    const pan = this.deps.engine.pannerAt(worldAngle - this.player.heading);
+    src.connect(g).connect(pan).connect(this.deps.engine.sfxBus);
+    this.deps.engine.track(src);
+    src.start();
+    navigator.vibrate?.(35);
+    this.recorder.bump(this.runT);
+    this.deps.net.event({ type: 'bump' });
+  }
+
+  queueStep(): void {
+    this.stepBudget += 0.65;
+  }
+
+  private renderDebug(): void {
+    const state: RenderState = {
+      player: { x: this.player.x, y: this.player.y, heading: this.player.heading },
+      rays: this.lastEcho?.bins.map((b) => b.hit) ?? null,
+      clicks: this.lastEcho ? [{
+        x: this.player.x, y: this.player.y, hits: this.lastEcho.hitPoints, age: 0.4,
+      }] : [],
+      creature: this.creature ? { x: this.creature.x, y: this.creature.y, state: this.creature.state } : null,
+      creatureTarget: null,
+      showCreature: true,
+    };
+    this.deps.overlay.render(this.level, state, this.deps.engine, {
+      heading: `${Math.round(this.player.heading / DEG)}°`,
+      t: `${this.runT.toFixed(1)}s`,
+      fallback: this.sensorsFallback ? 'drag-turn' : 'sensors',
+      voice: this.deps.narrator.voiceLabel,
+    });
+  }
+
+  private endRun(outcome: Outcome): void {
+    if (this.ended) return;
+    this.ended = true;
+    cancelAnimationFrame(this.raf);
+    const rec = this.recorder.finish(outcome);
+    this.beacon?.stop();
+    this.breathing?.stop();
+    if (outcome === 'win') {
+      this.playCentred(this.deps.sounds.winSting, 0.9);
+      this.deps.narrator.say(this.level.meta.narration.win);
+    } else {
+      this.playCentred(this.deps.sounds.loseSting, 1);
+      if (this.level.meta.narration.lose) this.deps.narrator.say(this.level.meta.narration.lose);
+    }
+    this.deps.net.event({ type: 'end', outcome, recording: rec });
+    this.deps.onEnd(outcome, rec);
+  }
+}

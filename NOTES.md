@@ -1,0 +1,60 @@
+# NOTES — deviations from ECHO_SPEC.md
+
+Everything in the spec is implemented. Where a literal reading was technically
+impossible or self-contradictory, the closest equivalent was chosen:
+
+## Audio
+
+- **Beacon LFO rate:** the spec asks for a 0.15 Hz LFO *and* a seamless 6 s loop.
+  0.15 Hz completes only 0.9 cycles in 6 s, which cannot loop seamlessly. The
+  LFO runs at 1/6 Hz (exactly one cycle per loop) plus a 150 ms equal-power
+  crossfade at the seam. Nearest equivalent to "0.15 Hz, seamless".
+- **Breathing irregularity:** the spec asks for a 3.2 s cycle with slight
+  irregularity. A looped buffer must repeat, so the breathing buffer is 6.4 s
+  containing two 3.2 s cycles with ±8 % timing differences.
+- **Narration duck ramp:** implemented with `setTargetAtTime` τ = 0.05 s
+  (≈150 ms settle), matching the spec's 150 ms ramp.
+
+## Input / platform
+
+- **Portrait lock is best-effort:** `screen.orientation.lock()` is unsupported
+  on iOS Safari and only works in fullscreen/installed contexts elsewhere.
+  The PWA manifest sets `orientation: portrait`, `lock('portrait')` is called
+  in a try/catch, and the heading math (rotation-matrix back-of-phone vector)
+  is screen-rotation independent, so nothing depends on the lock succeeding.
+- **Pause-menu gesture addition:** the spec requires the walk-in-place step
+  detection to be "toggleable in the pause menu" but defines only tap /
+  swipe-down / swipe-up for that menu. **Swipe-left** toggles step detection
+  and the narrator confirms "Walk in place: on/off".
+- **Fallback-turn narration** is only spoken on touch devices; on desktop the
+  same drag-turn fallback exists but A/D keys already cover turning.
+
+## Deployment / services
+
+- **Vercel deploy** requires account authentication (`npx vercel`). `vercel.json`
+  with the `/watch` rewrite is included; run `npx vercel --prod` after logging
+  in to publish (HTTPS is required for iOS motion sensors).
+- **Spectator mode** needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` at
+  build time (see `.env.example`). Without them the game is fully functional
+  and the boot screen shows no room code, per spec.
+
+## Design choices within spec latitude
+
+- **Sandbox layout** was specified only by description (15×15 stone room,
+  internal wood wall, sack pile, 1-cell and 2-cell doorways). Implemented as a
+  wood wall spanning the midline with a 1-cell doorway at row 5 and a 2-cell
+  doorway at rows 9–10, sacks at rows 11–12.
+- **Echo binning** assigns each ray to its nearest bin centre (`round`), the
+  standard interpretation of "bin by relative angle into B bins".
+- **Heartbeat** is rescheduled per tick from the run clock; rate lerps
+  70 → 150 bpm as creature path distance goes 7 → 1 m.
+- **`npm audit`** reports vulnerabilities in dev-only transitive deps
+  (workbox/babel chain); none ship to production code.
+
+## Manual testing still required
+
+Section 14's checklist needs real devices (iPhone Safari, Android Chrome,
+wired earphones). Automated coverage: level validation, DDA/LOS/collision,
+BFS/A*/propagation, echo math (delays, openings, materials, near-wall boost),
+creature hearing/hunt/catch thresholds, gesture state machine, and the
+torch-heading yaw function (flat/tilted/upright poses, 360° sweep).
