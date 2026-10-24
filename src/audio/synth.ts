@@ -88,40 +88,45 @@ export async function synthesize(ctx: AudioContext): Promise<SoundSet> {
   normalize(click);
   click.getChannelData(0)[0] = 1; // 1-sample transient
 
-  // ── Footstep stone: 30 ms noise, band-pass 1.8 kHz, fast decay ──
-  const footstepStone = await render(rate, 0.09, (o) => {
+  // ── Footstep stone: 45 ms dull thud — low-passed noise + 140 Hz body ──
+  const footstepStone = await render(rate, 0.12, (o) => {
     const src = o.createBufferSource();
-    src.buffer = noiseBuffer(o, 0.09);
-    const env = envGain(o, [[0, 0.9], [0.03, 0.08], [0.09, 0]]);
-    const bp = o.createBiquadFilter();
-    bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 0.9;
-    src.connect(env).connect(bp).connect(o.destination);
-    src.start();
+    src.buffer = noiseBuffer(o, 0.12);
+    const env = envGain(o, [[0, 0.6], [0.045, 0.08], [0.12, 0]]);
+    const lp = o.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 900;
+    const body = o.createOscillator();
+    body.type = 'sine';
+    body.frequency.setValueAtTime(140, 0);
+    body.frequency.exponentialRampToValueAtTime(75, 0.08);
+    const bg = envGain(o, [[0, 0.5], [0.09, 0]]);
+    src.connect(env).connect(lp).connect(o.destination);
+    body.connect(bg).connect(o.destination);
+    src.start(); body.start(); body.stop(0.1);
   });
-  normalize(footstepStone, 0.9);
+  normalize(footstepStone, 0.8);
 
-  // ── Footstep wood: 60 ms, band-pass 600 Hz + 180 Hz creak, ±8% pitch ──
+  // ── Footstep wood: 70 ms band-pass 500 Hz + short resonant creak, ±8% ──
   const footstepWood: AudioBuffer[] = [];
   for (let v = 0; v < 3; v++) {
     const pitch = 1 + (Math.random() * 0.16 - 0.08);
-    const b = await render(rate, 0.14, (o) => {
+    const b = await render(rate, 0.16, (o) => {
       const src = o.createBufferSource();
-      src.buffer = noiseBuffer(o, 0.14);
+      src.buffer = noiseBuffer(o, 0.16);
       src.playbackRate.value = pitch;
-      const env = envGain(o, [[0, 0.8], [0.06, 0.15], [0.14, 0]]);
+      const env = envGain(o, [[0, 0.55], [0.07, 0.12], [0.16, 0]]);
       const bp = o.createBiquadFilter();
-      bp.type = 'bandpass'; bp.frequency.value = 600 * pitch; bp.Q.value = 1;
-      // 180 Hz resonant creak
+      bp.type = 'bandpass'; bp.frequency.value = 500 * pitch; bp.Q.value = 1.1;
       const creak = o.createOscillator();
       creak.type = 'sine';
-      creak.frequency.setValueAtTime(180 * pitch, 0);
-      creak.frequency.exponentialRampToValueAtTime(140 * pitch, 0.05);
-      const cg = envGain(o, [[0, 0.25], [0.05, 0.05], [0.09, 0]]);
+      creak.frequency.setValueAtTime(160 * pitch, 0.02);
+      creak.frequency.exponentialRampToValueAtTime(120 * pitch, 0.09);
+      const cg = envGain(o, [[0.02, 0.18], [0.09, 0]]);
       src.connect(env).connect(bp).connect(o.destination);
       creak.connect(cg).connect(o.destination);
-      src.start(); creak.start(); creak.stop(0.1);
+      src.start(); creak.start(0.02); creak.stop(0.12);
     });
-    footstepWood.push(normalize(b, 0.9));
+    footstepWood.push(normalize(b, 0.8));
   }
 
   // ── Footstep water: 180 ms filtered noise, 3 sub-splashes, LP 2.5 kHz ──

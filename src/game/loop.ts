@@ -246,7 +246,9 @@ export class GameSession {
       + this.dragTurnDeg * DEG;
     this.dragTurnDeg = 0;
     const oh = this.deps.orientation.heading;
-    if (oh !== null && !this.sensorsFallback) {
+    // Sensor heading only owns the player on touch devices — a laptop with an
+    // orientation sensor must not override A/D turning.
+    if (oh !== null && !this.sensorsFallback && this.deps.isTouch) {
       this.player.heading = oh * DEG;
       turnDelta = 0;
     }
@@ -340,7 +342,7 @@ export class GameSession {
       : f === 'wood'
         ? t.footstepWood[Math.floor(Math.random() * t.footstepWood.length)]
         : t.footstepStone;
-    this.playCentred(buf, 0.55 + Math.random() * 0.15);
+    this.playCentred(buf, 0.3 + Math.random() * 0.12);
     const field = this.currentField();
     if (field && this.creature) {
       this.creature.hearFootstep(this.level, field, f, this.player.x, this.player.y, this.creatureEvents());
@@ -379,9 +381,27 @@ export class GameSession {
       creatureTarget: null,
       showCreature: true,
     };
+    // Plain-English description of the last echo — what the player heard.
+    let heard = '—';
+    if (this.lastEcho) {
+      if (this.lastEcho.bins.length === 0) {
+        heard = 'silence (opening)';
+      } else {
+        const nearest = this.lastEcho.bins.reduce((a, b) => (b.dist < a.dist ? b : a));
+        const deg = nearest.rel > Math.PI ? nearest.rel - 2 * Math.PI : nearest.rel;
+        const dir = Math.abs(deg) < 0.4 ? 'ahead'
+          : deg > 0 ? (deg < 2.2 ? 'right' : 'behind')
+          : (deg > -2.2 ? 'left' : 'behind');
+        heard = `${nearest.material} ${nearest.dist.toFixed(1)}m ${dir}`;
+      }
+    }
     this.deps.overlay.render(this.level, state, this.deps.engine, {
+      level: `${this.level.meta.name} · ${this.runT.toFixed(1)}s`,
       heading: `${Math.round(this.player.heading / DEG)}°`,
-      t: `${this.runT.toFixed(1)}s`,
+      heard,
+      clicks: `${this.recorder.data.clicks}`,
+      bumps: `${this.recorder.data.bumps}`,
+      creature: this.creature ? this.creature.state : '—',
       fallback: this.sensorsFallback ? 'drag-turn' : 'sensors',
       voice: this.deps.narrator.voiceLabel,
     });

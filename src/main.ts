@@ -84,7 +84,11 @@ function boot(): void {
     },
     onHint: () => { if (phase === 'playing') session?.hint(); },
     onPause: () => togglePause(),
-    onDebugToggle: () => { overlay.toggle(); tuningPanel.toggle(); },
+    onDebugToggle: () => {
+      // In visual mode the map is always on; ` toggles the tuning panel only.
+      if (!visual) overlay.toggle();
+      tuningPanel.toggle();
+    },
   });
 
   const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;

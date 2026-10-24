@@ -40,3 +40,19 @@
   keeps the phone dark.
 - Validation: `tsc --noEmit` clean; `vitest run` 54/54 pass; `vite build` clean.
 - Limitations: visual mode is a test aid, not part of the shipped play UX.
+
+## 2026-10-24T21:45:00+05:30 — Desktop testability + audio fixes
+
+- Changed: `src/game/loop.ts` — sensor heading gated to touch devices (laptop
+  orientation sensors no longer override A/D); footstep gain reduced; HUD now
+  shows a plain-English "heard" readout (material + distance + direction of
+  nearest echo) plus level/time/clicks/bumps/creature state.
+  `src/audio/synth.ts` — stone/wood footsteps reworked to dull low thuds
+  instead of click-like 1.8 kHz bursts.
+  `src/main.ts` — Space starts the selected level from the menu; ` toggles
+  only the tuning panel while visual mode owns the map.
+- Why: first desktop test showed Space/A/D unresponsive (sensor override +
+  clicks disabled in Wake by design), footsteps sounding like clicks, and a
+  black map outside of play.
+- Validation: `tsc --noEmit` clean; `vitest run` 54/54 pass; `vite build` clean.
+- Limitations: none identified in these checks.
