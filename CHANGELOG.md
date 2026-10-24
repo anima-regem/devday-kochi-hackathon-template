@@ -68,3 +68,19 @@
   itself remains black by design.
 - Validation: `tsc --noEmit` clean; `vitest run` 54/54; `vite build` clean.
 - Limitations: visual review of the deployed build still pending.
+
+## 2026-10-24T22:05:00+05:30 — Echo readability + gesture edge cases
+
+- Changed: `src/audio/tuning.ts` — echoTimeScale 3→5, echoGain 0.9→1.15,
+  clickGain 0.5→0.45, reverbAmount 0.12→0.08 so echoes are audible and
+  temporally distinct from the dry click (verified via a scripted echo dump
+  on Walls: gap bin stays silent, flanks return).
+  `src/input/gestures.ts` — swipes require a sub-450 ms flick, so a released
+  drag-turn no longer triggers pause-menu swipes; `#tuning-panel` excluded
+  from game gestures.
+- Why: playtest found "clicking in the direction of the hole still produces
+  sound" — dry click masked the quiet/fast echoes — and accidental swipes.
+- Validation: scripted echo dump at 4 headings; `tsc` clean; 54/54 tests;
+  clean build.
+- Limitations: echo gain values are playtested on desktop speakers, not yet
+  tuned on earphones.

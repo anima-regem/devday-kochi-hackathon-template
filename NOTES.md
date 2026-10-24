@@ -58,3 +58,12 @@ wired earphones). Automated coverage: level validation, DDA/LOS/collision,
 BFS/A*/propagation, echo math (delays, openings, materials, near-wall boost),
 creature hearing/hunt/catch thresholds, gesture state machine, and the
 torch-heading yaw function (flat/tilted/upright poses, 360° sweep).
+
+### Echo tuning defaults (after desktop playtest)
+
+Spec defaults `echoTimeScale=3, echoGain=0.9, clickGain=0.5, reverbAmount=0.12`
+made echoes smear into the dry click (1.5 m wall → 26 ms delay, amp 0.56) and
+read as "clicking" rather than directional returns. Playtested defaults are
+now `echoTimeScale=5, echoGain=1.15, clickGain=0.45, reverbAmount=0.08` — all
+within the spec's tunable ranges (1–6 for the time scale; sliders still allow
+the original values).

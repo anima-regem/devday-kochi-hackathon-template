@@ -112,7 +112,8 @@ export class GestureRecognizer {
       } else if (!this.everMulti && !this.longPressFired) {
         if (dur < TAP_MAX_MS && dist < TAP_MAX_PX && totalMoved < TAP_MAX_PX) {
           this.emit({ type: 'tap' });
-        } else if (dist >= SWIPE_MIN_PX) {
+        } else if (dist >= SWIPE_MIN_PX && dur < 450) {
+          // Quick flicks only — a held drag-turn must not become a menu swipe.
           const dir = Math.abs(x - f.x0) >= Math.abs(y - f.y0)
             ? (x > f.x0 ? 'right' : 'left')
             : (y > f.y0 ? 'down' : 'up');
@@ -153,7 +154,7 @@ export class GestureRecognizer {
   /** Wire real pointer events on an element. Returns a detach function. */
   attach(el: HTMLElement): () => void {
     const isUi = (e: PointerEvent) =>
-      (e.target as HTMLElement | null)?.closest?.('button,input,select,a,[data-ui]');
+      (e.target as HTMLElement | null)?.closest?.('button,input,select,a,[data-ui],#tuning-panel');
     const down = (e: PointerEvent) => {
       if (isUi(e)) return;
       el.setPointerCapture?.(e.pointerId);
