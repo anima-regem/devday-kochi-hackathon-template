@@ -12,9 +12,9 @@
 - **Code repository URL:** https://github.com/cainebenoy/Echo-devin-hacks
 - **Final submitted implementation commit SHA:** recorded at submission time
   (see latest commit on `main`).
-- **Working demo URL or local demo steps:** `npm install && npm run dev`, or
-  deploy with `npx vercel --prod` (HTTPS required for iOS motion sensors).
-  Demo flow in [DEMO.md](DEMO.md).
+- **Working demo URL or local demo steps:** https://echo-devin-hacks.vercel.app/
+  (spectator: `/watch`). Local: `npm install && npm run dev`. Demo flow in
+  [DEMO.md](DEMO.md).
 - **Demo access requirements:** phone + wired earphones for the intended
   experience; desktop keyboard fallback works in any modern browser. Supabase
   env vars only needed for spectator mode.

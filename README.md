@@ -21,9 +21,9 @@ Built for **DevDay Exchange Community Hackathon: Kochi** (see
   (`/watch`) lets an audience watch the blindfolded player's run live on a
   projector.
 - **Team:** cainebenoy
-- **Working demo:** `npm run dev` then open the dev URL; for the full phone +
-  sensors demo, deploy to Vercel (`npx vercel --prod`, HTTPS required for iOS
-  `deviceorientation`). See [DEMO.md](DEMO.md).
+- **Working demo:** https://echo-devin-hacks.vercel.app/ — phone + wired
+  earphones for the real experience; desktop keyboard fallback. Spectator
+  view at `/watch`. See [DEMO.md](DEMO.md).
 - **Technology stack:** Vite + TypeScript (no UI framework, plain DOM +
   Canvas 2D), Web Audio API (all sounds procedurally synthesized), Web Speech
   API narration, Supabase Realtime broadcast for spectator mode (optional),
